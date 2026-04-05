@@ -2,166 +2,197 @@ import { test, expect } from '@playwright/test';
 
 test.use({
   storageState: 'playwright/.auth/user.json',
-  headless: false
 });
 
-test.setTimeout(0); // Sin timeout - ejecución infinita
+test.setTimeout(0);
 
-// Función para generar delays aleatorios más humanos
+// Utility functions
 function randomDelay(min: number, max: number): number {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
-// Función para simular movimiento más natural del ratón
-async function humanLikeMouseMove(page: any, fromX: number, fromY: number, toX: number, toY: number) {
-  const steps = randomDelay(5, 15);
-  for (let i = 0; i <= steps; i++) {
-    const progress = i / steps;
-    const x = fromX + (toX - fromX) * progress;
-    const y = fromY + (toY - fromY) * progress;
-    await page.mouse.move(x, y);
-    await page.waitForTimeout(randomDelay(10, 30));
+function log(message: string, level: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
+  const timestamp = new Date().toISOString();
+  const levels = {
+    info: '[INFO]',
+    success: '[SUCCESS]',
+    warning: '[WARN]',
+    error: '[ERROR]'
+  };
+  console.log(`${timestamp} ${levels[level]} ${message}`);
+}
+
+async function findGameButton(page: any, gameIndex: number): Promise<any> {
+  // Find activity buttons that are direct children of gameActions__ (not inside .game__)
+  // Index 0 = Craft, Index 1 = Battle
+  // Always check by position, regardless of disabled state
+  const allButtons = await page.locator('div[class*="gameActions__"] > div[class*="activityButton__"]').all();
+  
+  if (gameIndex < allButtons.length) {
+    const targetBtn = allButtons[gameIndex];
+    const isDisabled = await targetBtn.locator('[class*="disabled__"]').count();
+    
+    if (isDisabled === 0) {
+      return targetBtn;
+    }
+  }
+  
+  return null;
+}
+
+async function findaventureButton(page: any): Promise<any> {
+  const gameContainer = page.locator('[class*="game__"]');
+  const aventure = gameContainer.locator('[class*="activityButton__"]').filter({ has: page.locator('text=aventure') });
+  const count = await aventure.count();
+  return count > 0 ? aventure.first() : null;
+}
+
+async function clickButtonRapidly(button: any, times: number = 100): Promise<void> {
+  for (let i = 0; i < times; i++) {
+    await button.click().catch(() => {});
   }
 }
 
-test('Minijuegos Infinitos - Fabricar o Batalla', async ({ page }) => {
-  // Establecer tamaño del navegador
+test('Auto Farm - Last Meadow', async ({ page }) => {
+  // Browser setup
   await page.setViewportSize({ width: 870, height: 626 });
 
   await page.goto('https://discord.com/channels/@me');
-  await page.getByRole('button', { name: 'Last Meadow en línea' }).click();
-  await page.getByRole('button', { name: 'Continuar partida' }).click();
+  await page.getByRole('button', { name: /Last Meadow/ }).click();
+  await page.locator('[class*="startText__"]').click();
 
   let roundNumber = 1;
 
   while (true) {
-    console.log(`\n${'='.repeat(60)}`);
-    console.log(`🎮 RONDA ${roundNumber}`);
-    console.log(`${'='.repeat(60)}`);
+    log(`=== ROUND ${roundNumber} STARTED ===`, 'info');
 
-    // Esperar a que la página cargue
     await page.waitForLoadState('networkidle');
     await page.waitForTimeout(2000);
 
-    // Detectar qué botón está disponible
     let gameType = null;
     let gameButton = null;
 
-    // Esperar a que no haya countdown
+    // Check for countdown timer
     let countdownVisible = await page.locator('[class*="countdownText__"]').isVisible().catch(() => false);
     if (countdownVisible) {
-      console.log('⏳ Hay contador visible, esperando...');
+      log('Countdown detected, waiting while clicking Adventure...', 'warning');
+      
+      const aventureButton = await findaventureButton(page);
+      
       for (let i = 0; i < 30; i++) {
-        await page.waitForTimeout(randomDelay(800, 1200)); // Delay aleatorio esperando contador
+        if (aventureButton) {
+          await clickButtonRapidly(aventureButton, 100);
+        }
+        
+        const craftBtn = await findGameButton(page, 0);
+        if (craftBtn) {
+          gameType = 'Craft';
+          gameButton = craftBtn;
+          log('Craft game available during countdown', 'success');
+          countdownVisible = false;
+          break;
+        }
+        
+        const battleBtn = await findGameButton(page, 1);
+        if (battleBtn) {
+          gameType = 'Battle';
+          gameButton = battleBtn;
+          log('Battle game available during countdown', 'success');
+          countdownVisible = false;
+          break;
+        }
+        
         const stillVisible = await page.locator('[class*="countdownText__"]').isVisible().catch(() => false);
         if (!stillVisible) {
-          console.log(`✅ Contador desapareció después de ${i}s`);
+          log(`Countdown disappeared after ${i}s`, 'success');
           break;
         }
       }
     }
 
-    // Buscar botones disponibles
-    const activityButtons = await page.locator('[class*="activityButton__"]').all();
-    console.log(`🔍 Se encontraron ${activityButtons.length} botones de actividad`);
+    // Search for available games
+    const buttons = await page.locator('[class*="activityButton__"]').all();
     
-    // Buscar Fabricar primero
-    for (const button of activityButtons) {
-      const hasDisabled = await button.locator('[class*="disabled__"]').count();
-      const text = await button.textContent();
-      
-      console.log(`   - Botón: "${text?.substring(0, 30)}" - Deshabilitado: ${hasDisabled > 0}`);
-      
-      if (hasDisabled === 0 && text?.includes('Fabricar')) {
-        gameType = 'Fabricar';
-        gameButton = button;
-        console.log('🎯 Encontrado: Fabricar disponible');
-        break;
+    if (!gameType) {
+      const craftBtn = await findGameButton(page, 0);
+      if (craftBtn) {
+        gameType = 'Craft';
+        gameButton = craftBtn;
+        log('Found: Craft game available', 'success');
       }
     }
 
-    // Si no hay Fabricar, buscar Batalla
     if (!gameType) {
-      for (const button of activityButtons) {
-        const hasDisabled = await button.locator('[class*="disabled__"]').count();
-        const text = await button.textContent();
+      const battleBtn = await findGameButton(page, 1);
+      if (battleBtn) {
+        gameType = 'Battle';
+        gameButton = battleBtn;
+        log('Found: Battle game available', 'success');
+      }
+    }
+
+    // Wait for a game to become available
+    if (!gameType) {
+      log('Waiting for a game to become available...', 'warning');
+      
+      const aventureButton = await findaventureButton(page);
+      let clickingAdventure = false;
+      if (aventureButton) {
+        clickingAdventure = true;
+        log('Clicking Adventure while waiting...', 'info');
+      }
+      
+      for (let i = 0; i < 180; i++) {
+        if (clickingAdventure && aventureButton) {
+          await clickButtonRapidly(aventureButton, 100);
+        }
         
-        if (hasDisabled === 0 && text?.includes('Batalla')) {
-          gameType = 'Batalla';
-          gameButton = button;
-          console.log('🎯 Encontrado: Batalla disponible');
+        const fabricarBtn = await findGameButton(page, 0);
+        if (fabricarBtn) {
+          gameType = 'Craft';
+          gameButton = fabricarBtn;
+          clickingAdventure = false;
+          log(`Craft game available after ${i}s`, 'success');
           break;
         }
-      }
-    }
 
-    // Si ninguno está disponible, esperar
-    if (!gameType) {
-      console.log('⏳ Esperando a que se habilite un minijuego...');
-      for (let i = 0; i < 180; i++) {
-        await page.waitForTimeout(1000);
-        
-        const freshButtons = await page.locator('[class*="activityButton__"]').all();
-        
-        // Buscar Fabricar
-        for (const btn of freshButtons) {
-          const disabled = await btn.locator('[class*="disabled__"]').count();
-          const btnText = await btn.textContent();
-          
-          if (disabled === 0 && btnText?.includes('Fabricar')) {
-            gameType = 'Fabricar';
-            gameButton = btn;
-            console.log(`✅ Fabricar disponible después de ${i}s`);
-            break;
-          }
+        const battleBtn = await findGameButton(page, 1);
+        if (battleBtn) {
+          gameType = 'Battle';
+          gameButton = battleBtn;
+          clickingAdventure = false;
+          log(`Battle game available after ${i}s`, 'success');
+          break;
         }
-
-        // Si encontramos Fabricar, salir
-        if (gameType) break;
-
-        // Buscar Batalla
-        for (const btn of freshButtons) {
-          const disabled = await btn.locator('[class*="disabled__"]').count();
-          const btnText = await btn.textContent();
-          
-          if (disabled === 0 && btnText?.includes('Batalla')) {
-            gameType = 'Batalla';
-            gameButton = btn;
-            console.log(`✅ Batalla disponible después de ${i}s`);
-            break;
-          }
-        }
-
-        if (gameType) break;
         
         if (i % 30 === 0 && i > 0) {
-          console.log(`⏳ Esperando... ${i}/180 segundos`);
+          log(`Still waiting... ${i}/180 seconds elapsed`, 'warning');
         }
+        
+        await page.waitForTimeout(1000);
       }
 
       if (!gameType) {
-        throw new Error('No se encontró ningún minijuego disponible');
+        throw new Error('No game became available within 180 seconds');
       }
     }
 
-    // Esperar un poco antes de ejecutar - simular que el jugador está leyendo/pensando
-    console.log('🤔 Preparándose para jugar...');
+    // Execute the selected game
+    log(`Preparing to play ${gameType}...`, 'info');
     await page.waitForTimeout(randomDelay(1500, 4000));
 
-    // Click en el botón
     if (gameButton) {
       await gameButton.hover();
-      await page.waitForTimeout(randomDelay(200, 600)); // Delay aleatorio al hover
+      await page.waitForTimeout(randomDelay(200, 600));
       await gameButton.click();
-      console.log(`✅ Click en ${gameType}`);
+      log(`Playing: ${gameType}`, 'info');
     }
 
-    // Esperar a que cargue
     await page.waitForLoadState('networkidle');
-    await page.waitForTimeout(randomDelay(1500, 3500)); // Delay aleatorio entre juegos
+    await page.waitForTimeout(randomDelay(1500, 3500));
 
-    // FABRICAR - Secuencias de flechas
-    if (gameType === 'Fabricar') {
+    // Craft game - Arrow key sequences
+    if (gameType === 'Craft') {
       let sequenceNumber = 1;
       let hasMoreSequences = true;
 
@@ -170,7 +201,7 @@ test('Minijuegos Infinitos - Fabricar o Batalla', async ({ page }) => {
           await expect(page.locator('div').filter({ hasText: /^Use your arrow keys!$/ }).first()).toBeVisible({ timeout: 10000 });
           
           const characters = await page.locator('[class*="sequences__"] [class*="character__"]').all();
-          console.log(`🎯 Secuencia ${sequenceNumber}: ${characters.length} pasos`);
+          log(`Sequence ${sequenceNumber}: ${characters.length} steps`, 'info');
 
           const keySequence: string[] = [];
           
@@ -196,10 +227,10 @@ test('Minijuegos Infinitos - Fabricar o Batalla', async ({ page }) => {
 
             const pressKey = keyMap[key.toLowerCase()] || key;
             await page.locator('body').press(pressKey);
-            await page.waitForTimeout(randomDelay(150, 350)); // Delay aleatorio entre teclas
+            await page.waitForTimeout(randomDelay(150, 350));
           }
 
-          await page.waitForTimeout(randomDelay(800, 1500)); // Delay antes de siguiente secuencia
+          await page.waitForTimeout(randomDelay(800, 1500));
           const nextSequenceExists = await page.locator('div').filter({ hasText: /^Use your arrow keys!$/ }).count();
           
           if (nextSequenceExists === 0) {
@@ -213,91 +244,81 @@ test('Minijuegos Infinitos - Fabricar o Batalla', async ({ page }) => {
       }
     }
 
-    // BATALLA - Bloquear proyectiles
-    if (gameType === 'Batalla') {
+    // Battle game - Block projectiles
+    if (gameType === 'Battle') {
       const maxBattleTime = 240000;
       const battleStartTime = Date.now();
       let projectilesBlocked = 0;
 
       while ((Date.now() - battleStartTime) < maxBattleTime) {
-        // Revisar si el botón continuar ya apareció
         const continueButtonExists = await page.locator('[class*="continueButtonWrapper__"]').count().catch(() => 0);
         if (continueButtonExists > 0) {
-          console.log(`✅ Batalla completada! Proyectiles bloqueados: ${projectilesBlocked}`);
+          log(`Battle completed! Projectiles blocked: ${projectilesBlocked}`, 'success');
           break;
         }
 
-        // Mover ratón de izquierda a derecha para coger proyectiles
         const viewport = page.viewportSize();
         if (viewport) {
-          // Barrer de izquierda a derecha
-          for (let x = 100; x < viewport.width - 100; x += randomDelay(30, 70)) { // Pasos aleatorios
+          // Sweep left to right
+          for (let x = 100; x < viewport.width - 100; x += randomDelay(30, 70)) {
             await page.mouse.move(x, viewport.height - 150).catch(() => {});
             await page.mouse.click(x, viewport.height - 150).catch(() => {});
-            await page.waitForTimeout(randomDelay(15, 50)).catch(() => {}); // Delay aleatorio
+            await page.waitForTimeout(randomDelay(15, 50)).catch(() => {});
 
-            // Verificar si continuar apareció durante el barrido
             const btnExists = await page.locator('[class*="continueButtonWrapper__"]').count().catch(() => 0);
             if (btnExists > 0) {
               projectilesBlocked++;
-              console.log(`✅ Batalla completada! Proyectiles bloqueados: ${projectilesBlocked}`);
+              log(`Battle completed! Projectiles blocked: ${projectilesBlocked}`, 'success');
               break;
             }
           }
 
-          // Si continuar apareció, salir del loop exterior
           const btnExists = await page.locator('[class*="continueButtonWrapper__"]').count().catch(() => 0);
           if (btnExists > 0) break;
 
-          // Pequeño delay aleatorio entre direcciones
           await page.waitForTimeout(randomDelay(100, 300)).catch(() => {});
 
-          // Barrer de derecha a izquierda
-          for (let x = viewport.width - 100; x > 100; x -= randomDelay(30, 70)) { // Pasos aleatorios
+          // Sweep right to left
+          for (let x = viewport.width - 100; x > 100; x -= randomDelay(30, 70)) {
             await page.mouse.move(x, viewport.height - 150).catch(() => {});
             await page.mouse.click(x, viewport.height - 150).catch(() => {});
-            await page.waitForTimeout(randomDelay(15, 50)).catch(() => {}); // Delay aleatorio
+            await page.waitForTimeout(randomDelay(15, 50)).catch(() => {});
 
-            // Verificar si continuar apareció durante el barrido
             const btnExists = await page.locator('[class*="continueButtonWrapper__"]').count().catch(() => 0);
             if (btnExists > 0) {
               projectilesBlocked++;
-              console.log(`✅ Batalla completada! Proyectiles bloqueados: ${projectilesBlocked}`);
+              log(`Battle completed! Projectiles blocked: ${projectilesBlocked}`, 'success');
               break;
             }
           }
 
-          // Si continuar apareció, salir del loop exterior
           const btnExists2 = await page.locator('[class*="continueButtonWrapper__"]').count().catch(() => 0);
           if (btnExists2 > 0) break;
         }
       }
     }
 
-    // Esperar y hacer click en Continuar
-    console.log('⏳ Esperando botón Continuar...');
+    // Wait and click Continue button
+    log('Waiting for Continue button...', 'info');
     try {
       const continueButton = page.locator('[class*="continueButtonWrapper__"]');
       
-      // Esperar a que exista en el DOM (no necesariamente visible)
       await continueButton.first().waitFor({ timeout: 30000 });
       
-      // Scroll al elemento para asegurar que es clickeable
       await continueButton.first().scrollIntoViewIfNeeded();
-      await page.waitForTimeout(randomDelay(300, 800)); // Delay aleatorio antes de click
+      await page.waitForTimeout(randomDelay(300, 800));
       
-      console.log('✅ Haciendo click en Continuar');
+      log('Clicking Continue button', 'info');
       await continueButton.first().hover();
-      await page.waitForTimeout(randomDelay(150, 500)); // Delay aleatorio al hover
+      await page.waitForTimeout(randomDelay(150, 500));
       await continueButton.first().click();
     } catch (e) {
-      console.log('⚠️ No se encontró botón Continuar:', e.message);
+      log('Continue button not found', 'warning');
     }
 
-    console.log(`✅ Ronda ${roundNumber} - ${gameType} completada!\n`);
+    log(`Round ${roundNumber} - ${gameType} completed`, 'success');
     roundNumber++;
     
-    // Esperar antes de la siguiente ronda - DELAY BIEN VARIABLE
     await page.waitForTimeout(randomDelay(2000, 5000));
   }
 });

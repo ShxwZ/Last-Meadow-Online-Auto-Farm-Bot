@@ -2,30 +2,30 @@ import { test as setup, expect } from '@playwright/test';
 
 const authFile = 'playwright/.auth/user.json';
 
-setup('autenticar en Discord y guardar sesion', async ({ page }) => {
-  // Ir a Discord
+setup('authenticate in Discord and save session', async ({ page }) => {
+  // Go to Discord
   await page.goto('https://discord.com/login');
 
-  // Esperar a que cargue la página de login
+  // Wait for login page to load
   await page.waitForLoadState('networkidle');
 
-  console.log('🔓 Por favor, inicia sesión en Discord manualmente en el navegador...');
-  console.log('⏱️  Tienes 5 minutos para completar el login...');
+  console.log('🔓 Please, manually sign in to Discord in the browser...');
+  console.log('⏱️  You have 5 minutes to complete the login...');
 
   try {
-    // Esperar a que se complete el login detectando que estamos en la página principal
-    // Timeout aumentado a 5 minutos (300 segundos)
+    // Wait for login to complete by detecting we're on the main page
+    // Timeout set to 5 minutes (300 seconds)
     await page.waitForURL('https://discord.com/channels/**', { timeout: 300000 });
 
-    // Esperar a que la aplicación haya cargado completamente
+    // Wait for the application to fully load
     await page.waitForLoadState('networkidle');
 
-    // Guardar el estado de autenticación (cookies, localStorage, etc)
+    // Save the authentication state (cookies, localStorage, etc)
     await page.context().storageState({ path: authFile });
 
-    console.log(`✅ Sesión guardada exitosamente en ${authFile}`);
+    console.log(`✅ Session successfully saved to ${authFile}`);
   } catch (error) {
-    console.error('❌ Error durante la autenticación:');
-    throw new Error('No se pudo completar el login en Discord. Por favor intenta de nuevo.');
+    console.error('❌ Error during authentication:');
+    throw new Error('Could not complete login in Discord. Please try again.');
   }
 });

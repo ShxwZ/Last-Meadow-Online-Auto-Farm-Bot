@@ -1,87 +1,68 @@
 import { test, expect } from '@playwright/test';
 
-test.describe('Discord Autenticado', () => {
-  test('abrir interfaz de Discord y explorar', async ({ page }) => {
-    console.log('🚀 Iniciando sesión en Discord...');
+function log(message: string, level: 'info' | 'success' | 'warning' | 'error' = 'info'): void {
+  const timestamp = new Date().toISOString();
+  const levels = {
+    info: '[INFO]',
+    success: '[SUCCESS]',
+    warning: '[WARN]',
+    error: '[ERROR]'
+  };
+  console.log(`${timestamp} ${levels[level]} ${message}`);
+}
 
-    // Ir a Discord (ya estarás autenticado por la sesión guardada)
+test.describe('Discord Authenticated', () => {
+  test('Explore Discord interface', async ({ page }) => {
+    log('Starting Discord session...', 'info');
+
     await page.goto('https://discord.com/channels/@me');
 
-    // Verificar que estamos en la página autenticada
     await expect(page).toHaveURL(/discord\.com\/channels/);
+    log('Discord session confirmed', 'success');
 
-    console.log('✅ Sesión activa en Discord confirmada');
-
-    // Esperar a que cargue completamente
     await page.waitForLoadState('networkidle');
 
-    console.log('\n📊 Información de la página:');
-    console.log(`URL: ${page.url()}`);
-    console.log(`Título: ${await page.title()}`);
+    const currentUrl = page.url();
+    const pageTitle = await page.title();
+    log(`URL: ${currentUrl}`, 'info');
+    log(`Title: ${pageTitle}`, 'info');
 
-    // Obtener información de los servidores/guilds
     const guildButtons = await page.locator('[role="button"][aria-label*="servidor"], [aria-label*="Servidor"]').count();
-    console.log(`\n📡 Servidores encontrados: ${guildButtons}`);
+    log(`Servers found: ${guildButtons}`, 'info');
 
-    // Verificar si hay canales visibles
     const channels = await page.locator('[role="link"][aria-label*="canal"], [aria-label*="Canal"]').count();
-    console.log(`📢 Canales encontrados: ${channels}`);
+    log(`Channels found: ${channels}`, 'info');
 
-    // Obtener el nombre de usuario (si está disponible)
     try {
       const userButton = page.locator('[data-testid="user-profile-button"]');
       if (await userButton.isVisible({ timeout: 2000 })) {
-        console.log('👤 Botón de perfil de usuario encontrado');
+        log('User profile button found', 'info');
       }
     } catch (e) {
-      // Ignorar si no existe
+      log('User profile button not found', 'warning');
     }
 
-    // Listar elementos principales de la interfaz
-    console.log('\n🔍 Elementos principales encontrados:');
-    
     const nav = await page.locator('nav').all();
-    console.log(`- Navegación: ${nav.length} elementos`);
-
     const buttons = await page.locator('button').all();
-    console.log(`- Botones: ${buttons.length} elementos`);
-
     const links = await page.locator('a').all();
-    console.log(`- Links: ${links.length} elementos`);
+    
+    log(`Navigation elements: ${nav.length}`, 'info');
+    log(`Buttons: ${buttons.length}`, 'info');
+    log(`Links: ${links.length}`, 'info');
 
-    console.log('\n✨ La interfaz de Discord está lista para explorar!');
-    console.log('💡 Tienes 30 segundos para interactuar con el navegador...\n');
+    log('Discord interface ready for exploration', 'success');
+    log('Browser will stay open for 30 seconds', 'info');
 
-    // Mantener el navegador abierto 30 segundos para que puedas explorar
     await page.waitForTimeout(30000);
 
-    console.log('\n✅ Test completado. El navegador se cerrará ahora.');
+    log('Test completed', 'success');
   });
 
-  test('interactuar con Discord - ejemplo', async ({ page }) => {
-    // Ir a Discord
+  test('Interact with Discord', async ({ page }) => {
     await page.goto('https://discord.com/channels/@me');
     await page.waitForLoadState('networkidle');
 
-    console.log('📌 Test de interacción con Discord');
-
-    // Aquí puedes hacer más acciones autenticado
-    // Ejemplos descomentar y usar:
-
-    // 1. Buscar un servidor específico
-    // await page.click('button[aria-label*="Buscar"]');
-    // await page.fill('input[placeholder*="Buscar"]', 'nombre-del-servidor');
-
-    // 2. Hacer click en un canal
-    // await page.click('a[aria-label*="canal-name"]');
-
-    // 3. Enviar un mensaje
-    // await page.fill('div[role="textbox"]', 'Hola desde Playwright!');
-    // await page.press('div[role="textbox"]', 'Enter');
-
-    // 4. Ver información del usuario
-    // await page.click('[data-testid="user-profile-button"]');
-
-    console.log('✅ Discord está autenticado y listo para automatizar');
+    log('Discord interaction test started', 'info');
+    log('Discord is authenticated and ready for automation', 'success');
   });
 });
