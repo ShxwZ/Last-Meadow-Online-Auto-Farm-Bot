@@ -2,6 +2,8 @@
 
 Playwright automation bot that auto-farms mini-games in the Last Meadow Discord game.
 
+> ⚠️ **Note**: Currently only implemented for the **Paladin** class.
+
 ## Prerequisites
 
 - Node.js (v16+)
