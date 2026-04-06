@@ -41,15 +41,27 @@ async function findGameButton(page: any, gameIndex: number): Promise<any> {
 }
 
 async function findaventureButton(page: any): Promise<any> {
-  const gameContainer = page.locator('[class*="game__"]');
-  const aventure = gameContainer.locator('[class*="activityButton__"]').filter({ has: page.locator('text=aventure') });
-  const count = await aventure.count();
-  return count > 0 ? aventure.first() : null;
+  const aventureButtons = await page.locator('[class*="activityButton__"]').all();
+  
+  for (const btn of aventureButtons) {
+    const text = await btn.locator('[class*="activityButtonText__"]').first().textContent();
+    if (text && text.toLowerCase().includes('aventura')) {
+      return btn;
+    }
+  }
+  
+  return null;
 }
 
-async function clickButtonRapidly(button: any, times: number = 100): Promise<void> {
+async function clickButtonRapidly(button: any, page: any, times: number = 100): Promise<void> {
+  try {
+    await button.hover();
+    await page.waitForTimeout(100);
+  } catch (e) {}
+  
   for (let i = 0; i < times; i++) {
     await button.click().catch(() => {});
+    await page.waitForTimeout(randomDelay(2, 8));
   }
 }
 
@@ -81,7 +93,7 @@ test('Auto Farm - Last Meadow', async ({ page }) => {
       
       for (let i = 0; i < 30; i++) {
         if (aventureButton) {
-          await clickButtonRapidly(aventureButton, 100);
+          await clickButtonRapidly(aventureButton, page, 200);
         }
         
         const craftBtn = await findGameButton(page, 0);
@@ -134,24 +146,18 @@ test('Auto Farm - Last Meadow', async ({ page }) => {
     // Wait for a game to become available
     if (!gameType) {
       log('Waiting for a game to become available...', 'warning');
-      
-      const aventureButton = await findaventureButton(page);
-      let clickingAdventure = false;
-      if (aventureButton) {
-        clickingAdventure = true;
-        log('Clicking Adventure while waiting...', 'info');
-      }
+      log('Clicking Adventure while waiting...', 'info');
       
       for (let i = 0; i < 180; i++) {
-        if (clickingAdventure && aventureButton) {
-          await clickButtonRapidly(aventureButton, 100);
+        const aventureButton = await findaventureButton(page);
+        if (aventureButton) {
+          await clickButtonRapidly(aventureButton, page, 200);
         }
         
         const fabricarBtn = await findGameButton(page, 0);
         if (fabricarBtn) {
           gameType = 'Craft';
           gameButton = fabricarBtn;
-          clickingAdventure = false;
           log(`Craft game available after ${i}s`, 'success');
           break;
         }
@@ -160,7 +166,6 @@ test('Auto Farm - Last Meadow', async ({ page }) => {
         if (battleBtn) {
           gameType = 'Battle';
           gameButton = battleBtn;
-          clickingAdventure = false;
           log(`Battle game available after ${i}s`, 'success');
           break;
         }
@@ -198,7 +203,8 @@ test('Auto Farm - Last Meadow', async ({ page }) => {
 
       while (hasMoreSequences) {
         try {
-          await expect(page.locator('div').filter({ hasText: /^Use your arrow keys!$/ }).first()).toBeVisible({ timeout: 10000 });
+          const sequencesContainer = page.locator('[class*="sequences__"]').first();
+          await sequencesContainer.waitFor({ timeout: 10000 });
           
           const characters = await page.locator('[class*="sequences__"] [class*="character__"]').all();
           log(`Sequence ${sequenceNumber}: ${characters.length} steps`, 'info');
@@ -211,6 +217,7 @@ test('Auto Farm - Last Meadow', async ({ page }) => {
             keySequence.push(altText || '');
           }
 
+          log(`Key sequence: ${keySequence.join(', ')}`, 'info');
           await page.locator('body').click();
           
           for (const key of keySequence) {
@@ -231,14 +238,16 @@ test('Auto Farm - Last Meadow', async ({ page }) => {
           }
 
           await page.waitForTimeout(randomDelay(800, 1500));
-          const nextSequenceExists = await page.locator('div').filter({ hasText: /^Use your arrow keys!$/ }).count();
+          const sequencesExist = await page.locator('[class*="sequences__"]').count();
           
-          if (nextSequenceExists === 0) {
+          if (sequencesExist === 0) {
+            log('No more sequences found', 'success');
             hasMoreSequences = false;
           } else {
             sequenceNumber++;
           }
         } catch (e) {
+          log(`Craft game error: ${e}`, 'warning');
           hasMoreSequences = false;
         }
       }
