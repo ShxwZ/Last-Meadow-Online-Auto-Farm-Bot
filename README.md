@@ -2,7 +2,6 @@
 
 Playwright automation bot that auto-farms mini-games in the Last Meadow Discord game.
 
-> ⚠️ **Note**: Currently only implemented for the **Paladin** class.
 
 ## Prerequisites
 
@@ -79,6 +78,48 @@ Press `Ctrl+C` in the terminal to stop the test execution.
 - **Selectors not found**: Discord UI changes may require updating the CSS selectors in the test file
 
 ## Configuration
+
+### IMPORTANT: Game Class Configuration
+
+Before running the bot, you must:
+
+1. **Configure your class in the game**: 
+   - In Last Meadow, select and play with your desired class/character (Paladin, Ranger, Priest, etc.)
+   - The bot will detect this and adjust its behavior accordingly
+
+2. **Update `battle-config.json`**: 
+   - Edit the file and set the `battleType` to match the class you're using in the game
+   - This tells the bot which battle strategy to use during Battle mini-games
+
+### battle-config.json
+
+```json
+{
+  "battleType": "PRIEST",
+  "description": "Clase del personaje a usar. Opciones: PALADIN, RANGER, PRIEST"
+}
+```
+
+**How it works:**
+- The bot will detect when a Battle mini-game starts
+- Based on your configured `battleType`, it will use the appropriate strategy to fight enemies
+- Each class has different combat mechanics in Last Meadow
+
+**Available Battle Types:**
+
+- **PALADIN** `(clase tanque defensa)`: 
+  - Normal attacks with direct targeting
+  - Clicks enemies that appear on screen
+  
+- **RANGER** `(clase atacante rápido)`: 
+  - Rapid target clicking strategy
+  - Clicks targets quickly with multiple rapid clicks per target
+  
+- **PRIEST** `(clase sanador puzzle)`: 
+  - Match 3 cards puzzle battle
+  - Identifies and matches groups of 3 identical cards to clear them from the grid
+
+### Bot Settings
 
 - **Viewport size**: 870x626 (configured for optimal Discord game compatibility)
 - **Game timeout**: 4 minutes per game (240 seconds)
