@@ -96,7 +96,7 @@ Before running the bot, you must:
 ```json
 {
   "battleType": "PRIEST",
-  "description": "Clase del personaje a usar. Opciones: PALADIN, RANGER, PRIEST"
+  "_description": "PALADIN, RANGER, PRIEST"
 }
 ```
 
@@ -107,15 +107,15 @@ Before running the bot, you must:
 
 **Available Battle Types:**
 
-- **PALADIN** `(clase tanque defensa)`: 
+- **PALADIN**: 
   - Normal attacks with direct targeting
-  - Clicks enemies that appear on screen
+  - Sweep the shield on screen
   
-- **RANGER** `(clase atacante rápido)`: 
+- **RANGER**: 
   - Rapid target clicking strategy
   - Clicks targets quickly with multiple rapid clicks per target
   
-- **PRIEST** `(clase sanador puzzle)`: 
+- **PRIEST**`: 
   - Match 3 cards puzzle battle
   - Identifies and matches groups of 3 identical cards to clear them from the grid
 
